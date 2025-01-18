@@ -17,7 +17,6 @@ warnings.filterwarnings('ignore')
 # Initialize Flask app
 app = Flask(__name__)
 
-
 CORS(app)
 # Ensure NLTK resources are downloaded
 nltk.download('stopwords')
@@ -88,30 +87,27 @@ def initialize_model():
 @app.route('/analyze', methods=['POST'])
 def analyze_comment():
     try:
-        # Récupérer le commentaire de la requête
         data = request.get_json()
         if not data or 'comment' not in data:
             return jsonify({
                 'error': 'No comment provided'
             }), 400
         
-        comment = data['comment']
+        comment_text = data['comment']
+        processed_comment = preprocess_text(comment_text)
         
-        # Prétraiter le commentaire
-        processed_comment = preprocess_text(comment)
+        # Obtenir les prédictions
+        predictions = MODEL.predict([processed_comment])[0]
         
-        # Faire la prédiction
-        predictions = MODEL.predict_proba([processed_comment])[0]
+        # Créer le dictionnaire des prédictions
+        prediction_results = {}
+        for label, pred in zip(LABELS, predictions):
+            prediction_results[label] = int(pred)
         
-        # Préparer la réponse
-        results = {}
-        for label, pred_prob in zip(LABELS, predictions):
-            results[label] = float(pred_prob)  # Convertir en float pour la sérialisation JSON
-        
+        # Retourner uniquement comment_text et predictions
         return jsonify({
-            'comment': comment,
-            'predictions': results,
-            'toxic': any(prob > 0.5 for prob in results.values())
+            'comment_text': comment_text,
+            'predictions': prediction_results
         })
     
     except Exception as e:
