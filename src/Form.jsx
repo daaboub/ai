@@ -1,157 +1,122 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import React, { useState } from "react";
 
-const CommentForm = () => {
-  const [comment, setComment] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  const [commentaire, setCommentaire] = useState(''); 
+function CommentForm() {
+  const [comment, setComment] = useState("");
   const [comments, setComments] = useState([]);
-  const [response, setResponse] = useState(''); 
-  const [toxic, setToxic] = useState(''); 
-  const [loading, setLoading] = useState(false); 
+  const [error, setError] = useState("");
 
-   
-   const handleChange = (e) => {
-    setCommentaire(e.target.value);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true); 
-    setResponse(''); 
+  const analyzeComment = async () => {
+    setError("");
 
     try {
-      const response = await axios.post('http://127.0.0.1:5000/analyze', {
-
-        comment: commentaire,
+      const response = await fetch("http://127.0.0.1:5000/predict", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ comment }),
       });
 
-      
-      setResponse(response.data.predictions); 
-
-      const allZero = (!Object.values(response.data.predictions).includes(1));
-
-      setToxic(response.data.toxic)
-      
-      
-      if (!response.data.toxic) {
-        setComments((prevComments) => [...prevComments, response.data.comment]);
+      if (!response.ok) {
+        throw new Error("Erreur lors de l'analyse du commentaire");
       }
-      
-          
-    } catch (error) {
-      console.error('Erreur lors de l\'envoi du commentaire:', error);
-      setResponse('Erreur lors de l\'envoi du commentaire');
-    } finally {
-      setLoading(false); 
+
+      const data = await response.json();
+
+      setComments([...comments, { ...data, comment_text: comment }]);
+
+      setComment(""); 
+    } catch (err) {
+      setError(err.message);
     }
   };
 
   return (
-    <div className="container py-5 d-felx ">
-      <div className="row">
-
-        <div className="col-md-6">
-          <div className="card shadow">
-            <div className="card-body">
-
-              {response && (
-                <div 
-                  className={`alert ${toxic ? 'alert-danger' : 'alert-success'} alert-dismissible fade show`} 
-                  role="alert"
-                >
-                  <p>
-                  {toxic
-                    ? <>Nous ne pouvons pas accepter votre commentaire car il est <strong>toxique</strong></> 
-                    : 'Votre commentaire est accepté'}
-                </p> 
-                  <button 
-                    type="button" 
-                    className="btn-close" 
-                    data-bs-dismiss="alert" 
-                    aria-label="Close"
-                  ></button>
-                </div>
-              )}
-              <form onSubmit={handleSubmit}>
-                <div className="mb-3">
-                <div>
-        <h2>Commentaires :</h2>
-        {comments.map((comment, index) => (
-          
-          <p key={index}>- <b>{comment}</b></p>
-        ))}
-      </div>
-                
-                  <textarea
-                    id="comment"
-                    className="form-control"
-                    rows="6"
-                    placeholder="Entrez votre commentaire ici..."
-                    value={commentaire}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className={`btn btn-primary w-100 ${loading ? 'disabled' : ''}`}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                      Analyse en cours...
-                    </>
-                  ) : (
-                    'Analyser le Commentaire'
-                  )}
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-md-6 d-none d-md-flex align-items-center justify-content-center">
-          <div className="text-center">
-            <div className="mb-4" style={{ fontSize: '6rem', color: '#0d6efd' }}>
-              <i className="bi bi-graph-up-arrow"></i>
-            </div>
-            
-            <div className="d-flex justify-content-center gap-4">
-              <div className="text-center">
-                <div style={{ fontSize: '2.5rem', color: '#198754' }}>
-                  <i className="bi bi-emoji-smile"></i>
-                </div>
-                <div className="mt-2">Positif</div>
-              </div>
-              <div className="text-center">
-                <div style={{ fontSize: '2.5rem', color: '#dc3545' }}>
-                  <i className="bi bi-emoji-neutral"></i>
-                </div>
-                <div className="mt-2">Neutre</div>
-              </div>
-              <div className="text-center">
-                <div style={{ fontSize: '2.5rem', color: '#ffc107' }}>
-                  <i className="bi bi-emoji-frown"></i>
-                </div>
-                <div className="mt-2">Négatif</div>
-              </div>
-            </div>
-
-
-          </div>
-        </div>
+    <div style={{ 
+      maxWidth: "600px", 
+      margin: "20px auto", 
+      backgroundColor: "#f4f6f9", 
+      borderRadius: "10px", 
+      boxShadow: "0 2px 10px rgba(0,0,0,0.1)", 
+      padding: "20px", 
+      backgroundSize: "cover", 
+      backgroundPosition: "center"
+    }}>
+      <div style={{ marginBottom: "15px", textAlign: "center" }}>
+        <img
+          src="post.jpg"
+          alt="Post"
+          style={{ width: "100%", borderRadius: "10px", maxHeight: "300px", objectFit: "cover" }}
+        />
       </div>
 
-      <link 
-        rel="stylesheet" 
-        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
-      />
+      <div style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}>
+        <input
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Exprimez-vous..."
+          rows="3"
+          style={{ width: "100%", borderRadius: "10px", padding: "10px", fontSize: "16px", border: "1px solid #ccc" }}
+        />
+        <button 
+          onClick={analyzeComment} 
+          style={{ 
+            backgroundColor: "#1877f2", 
+            color: "white", 
+            border: "none", 
+            borderRadius: "50%", 
+            padding: "10px", 
+            marginLeft: "10px", 
+            cursor: "pointer" 
+          }}
+        >
+          <i className="fa fa-paper-plane" style={{ fontSize: "16px" }}></i>
+        </button>
+      </div>
+
+      <p style={{ textAlign: "end" }}>{comments.length} commentaires</p>
+      <hr />
+
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
+      <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+        {comments.map((commentData, index) => {
+          const { comment_text, ...categories } = commentData;
+          const detectedCategories = Object.keys(categories).filter(
+            (category) => categories[category] === 1
+          );
+
+          return (
+            <div key={index} style={{ marginBottom: "10px", padding: "10px", borderRadius: "8px" }}>
+              <div
+                style={{
+                  backgroundColor: detectedCategories.includes("toxic") ? "#f8d7da" : "#e9ecef",
+                  color: detectedCategories.includes("toxic") ? "#721c24" : "#333",
+                  padding: "10px",
+                  borderRadius: "8px",
+                }}
+              >
+                <div style={{ fontSize: "14px", fontWeight: "bold" }}>
+                  {comment_text}
+                </div>
+                {/* Afficher le label seulement si des catégories sont détectées */}
+                {detectedCategories.length > 0 && (
+                  <small>
+                    Catégories détectées
+                    {detectedCategories.map((category, index) => (
+                    <span key={index} className="badge bg-danger m-1">
+                      {category}
+                    </span>
+      ))}
+                  </small>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
-};
+}
 
 export default CommentForm;

@@ -1,125 +1,56 @@
-from flask import Flask, request, jsonify
+#!/usr/bin/env python
+# coding: utf-8
+
 import pandas as pd
-import numpy as np
 import re
 import nltk
-from nltk.corpus import stopwords
 from nltk.stem.snowball import SnowballStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.pipeline import Pipeline
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.linear_model import LogisticRegression
-import pickle
-import warnings
+from flask import Flask, request, jsonify
 from flask_cors import CORS
+import warnings
+
 warnings.filterwarnings('ignore')
 
-# Initialize Flask app
-app = Flask(__name__)
+df = pd.read_csv('train.csv')
+df = df.drop(columns=['id'], axis=1)
 
-CORS(app)
-# Ensure NLTK resources are downloaded
-nltk.download('stopwords')
-stopwords_set = set(stopwords.words('english'))
 stemmer = SnowballStemmer('english')
 
-# Text preprocessing functions
-def remove_stopwords(text):
-    no_stopword_text = [w for w in text.split() if not w in stopwords_set]
-    return " ".join(no_stopword_text)
-
-def clean_text(text):
+def preprocess(text):
     text = text.lower()
-    text = re.sub(r"what's", "what is ", text)
-    text = re.sub(r"\'s", " ", text)
-    text = re.sub(r"\'ve", " have ", text)
-    text = re.sub(r"can't", "can not ", text)
-    text = re.sub(r"n't", " not ", text)
-    text = re.sub(r"i'm", "i am ", text)
-    text = re.sub(r"\'re", " are ", text)
-    text = re.sub(r"\'d", " would ", text)
-    text = re.sub(r"\'ll", " will ", text)
-    text = re.sub(r"\'scuse", " excuse ", text)
-    text = re.sub('\W', ' ', text)
-    text = re.sub('\s+', ' ', text)
-    return text.strip()
+    text = re.sub(r'\W', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    return " ".join(stemmer.stem(word) for word in text.split())
 
-def stemming(sentence):
-    stemmed_sentence = ""
-    for word in sentence.split():
-        stemmed_word = stemmer.stem(word)
-        stemmed_sentence += stemmed_word + " "
-    return stemmed_sentence.strip()
+df['comment_text'] = df['comment_text'].apply(preprocess)
 
-def preprocess_text(text):
-    text = remove_stopwords(text)
-    text = clean_text(text)
-    text = stemming(text)
-    return text
+X = df['comment_text']
+y = df.drop(columns=['comment_text'], axis=1)
 
-# Initialize and train the model
-def initialize_model():
-    # Charger les données d'entraînement
-    df = pd.read_csv('train.csv')
-    
-    # Prétraiter les données
-    df['comment_text'] = df['comment_text'].apply(preprocess_text)
-    
-    # Préparer X et y
-    X = df['comment_text']
-    y = df.drop(columns=['id', 'comment_text'], axis=1)
-    
-    # Créer et entraîner le pipeline
-    pipeline = Pipeline([
-        ('tfidf', TfidfVectorizer(stop_words='english')),
-        ('clf', OneVsRestClassifier(LogisticRegression(), n_jobs=-1))
-    ])
-    
-    pipeline.fit(X, y)
-    
-    # Sauvegarder les labels
-    global LABELS
-    LABELS = y.columns.values
-    
-    return pipeline
+vectorizer = TfidfVectorizer(stop_words='english', max_features=10000)
+X_tfidf = vectorizer.fit_transform(X)
 
-# Endpoint pour l'analyse des commentaires
-@app.route('/analyze', methods=['POST'])
-def analyze_comment():
-    try:
-        data = request.get_json()
-        if not data or 'comment' not in data:
-            return jsonify({
-                'error': 'No comment provided'
-            }), 400
-        
-        comment_text = data['comment']
-        processed_comment = preprocess_text(comment_text)
-        
-        # Obtenir les prédictions
-        predictions = MODEL.predict([processed_comment])[0]
-        
-        # Créer le dictionnaire des prédictions
-        prediction_results = {}
-        for label, pred in zip(LABELS, predictions):
-            prediction_results[label] = int(pred)
-        
-        # Retourner uniquement comment_text et predictions
-        return jsonify({
-            'comment_text': comment_text,
-            'predictions': prediction_results
-        })
-    
-    except Exception as e:
-        return jsonify({
-            'error': str(e)
-        }), 500
+model = OneVsRestClassifier(LogisticRegression(), n_jobs=-1)
+model.fit(X_tfidf, y)
+
+app = Flask(__name__)
+CORS(app)
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.get_json()
+    sentence = data.get('comment', '')
+    processed_sentence = preprocess(sentence)
+    tfidf_sentence = vectorizer.transform([processed_sentence])
+    results = model.predict(tfidf_sentence)[0]
+    labels = y.columns.values
+    output_dict = {label: int(result) for label, result in zip(labels, results)}
+    return jsonify(output_dict)
 
 if __name__ == '__main__':
-    # Initialiser le modèle au démarrage
-    print("Initializing model...")
-    MODEL = initialize_model()
-    print("Model initialized!")
-    
-    # Démarrer l'application
-    app.run(debug=True)
+    port = 5000
+    print(f"App is running on http://127.0.0.1:{port}")
+    app.run(debug=True, port=port)
